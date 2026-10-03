@@ -126,8 +126,8 @@ installation command.
 
 ## Running CI
 
-The `Build and release sysroots` workflow is started manually with an existing
-repository tag. It checks out that tag, builds the non-Darwin matrix, and
+The `Build and release sysroots` workflow is started manually from an existing
+repository tag. It builds the non-Darwin matrix on the selected ref and
 publishes the sysroot ZIPs plus the catalog asset to that release. Darwin
 references are reported by the workflow but are not published while Apple SDK
 redistribution remains unresolved.

@@ -2,11 +2,6 @@ name: Build and release sysroots
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing repository tag to build and release
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -21,11 +16,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
-      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
 
       - name: Validate catalog and README
         run: ./scripts/validate-catalog.sh
@@ -33,15 +25,6 @@ jobs:
       - id: matrix
         name: Build target matrix
         run: echo "matrix=$(python3 scripts/catalog.py buildable)" >> "$GITHUB_OUTPUT"
-
-      - id: tag
-        name: Select release tag
-        env:
-          INPUT_TAG: ${{ inputs.tag }}
-        run: |
-          tag="$INPUT_TAG"
-          test -n "$tag"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.reference }}
@@ -53,8 +36,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.catalog.outputs.tag }}
 
       - name: Enable foreign-architecture containers
         if: matrix.family != 'mingw-ucrt'
@@ -99,8 +80,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.catalog.outputs.tag }}
       - name: Explain Darwin gate
         run: |
           echo 'Darwin targets are intentionally excluded from release builds.'
@@ -113,8 +92,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.catalog.outputs.tag }}
 
       - name: Download packages
         uses: actions/download-artifact@v4
@@ -136,7 +113,7 @@ jobs:
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.catalog.outputs.tag }}
+          TAG: ${{ github.ref_name }}
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --title "$TAG" --generate-notes

@@ -23,7 +23,13 @@ case "$arch" in
 esac
 
 if [[ "$family" == musl ]]; then
-  image=${ALPINE_IMAGE:-alpine:3.21}
+  # The official Alpine manifest currently omits loong64. The Loong64
+  # project republishes the same Alpine releases with that architecture.
+  if [[ "$arch" == loongarch64 ]]; then
+    image=${ALPINE_IMAGE:-ghcr.io/loong64/alpine:3.21}
+  else
+    image=${ALPINE_IMAGE:-alpine:3.21}
+  fi
   packages='musl'
   [[ "$kind" == dev ]] && packages='musl-dev gcc libgcc'
   container="cplus-sysroot-${reference//[^A-Za-z0-9]/-}"
@@ -62,7 +68,7 @@ else
     else
       apt-get update
       if [ '$kind' = dev ]; then
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libc6-dev gcc libgcc-dev
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libc6-dev gcc
       else
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libc6
       fi
