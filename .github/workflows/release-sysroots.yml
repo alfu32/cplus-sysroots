@@ -4,17 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to release, or a new tag name to create
+        description: Existing repository tag to build and release
         required: true
         type: string
-      publish:
-        description: Publish generated ZIP assets to the tag release
-        required: true
-        default: false
-        type: boolean
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
@@ -30,9 +22,10 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       tag: ${{ steps.tag.outputs.tag }}
-      publish: ${{ steps.publish.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Validate catalog and README
         run: ./scripts/validate-catalog.sh
@@ -45,26 +38,10 @@ jobs:
         name: Select release tag
         env:
           INPUT_TAG: ${{ inputs.tag }}
-          REF_NAME: ${{ github.ref_name }}
         run: |
-          tag="${INPUT_TAG:-$REF_NAME}"
-          case "$tag" in
-            v*) ;;
-            *) echo "Release tag must start with v: $tag" >&2; exit 1 ;;
-          esac
+          tag="$INPUT_TAG"
+          test -n "$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-
-      - id: publish
-        name: Select publication mode
-        env:
-          INPUT_PUBLISH: ${{ inputs.publish }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [[ "$EVENT_NAME" == push ]]; then
-            echo 'publish=true' >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=${INPUT_PUBLISH:-false}" >> "$GITHUB_OUTPUT"
-          fi
 
   build:
     name: Build ${{ matrix.reference }}
@@ -76,6 +53,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.catalog.outputs.tag }}
 
       - name: Enable foreign-architecture containers
         if: matrix.family != 'mingw-ucrt'
@@ -120,6 +99,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.catalog.outputs.tag }}
       - name: Explain Darwin gate
         run: |
           echo 'Darwin targets are intentionally excluded from release builds.'
@@ -129,10 +110,11 @@ jobs:
   release:
     name: Publish release assets
     needs: [catalog, build, darwin-gate]
-    if: needs.catalog.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.catalog.outputs.tag }}
 
       - name: Download packages
         uses: actions/download-artifact@v4
