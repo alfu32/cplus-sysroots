@@ -1,0 +1,26 @@
+# C-plus sysroot artifacts.
+#
+# Format:
+#   <canonical target triple>/<kind>
+#
+# <kind> is either:
+#   dev - headers, startup objects, libraries, and linker metadata
+#   rt  - files needed to run dynamically linked programs
+
+# Linux
+x86_64-unknown-linux-gnu/dev
+x86_64-unknown-linux-gnu/rt
+aarch64-unknown-linux-gnu/dev
+aarch64-unknown-linux-gnu/rt
+
+# macOS
+x86_64-apple-darwin/dev
+x86_64-apple-darwin/rt
+aarch64-apple-darwin/dev
+aarch64-apple-darwin/rt
+
+# Windows (MinGW-compatible GNU ABI)
+x86_64-w64-mingw32/dev
+x86_64-w64-mingw32/rt
+aarch64-w64-mingw32/dev
+aarch64-w64-mingw32/rt
