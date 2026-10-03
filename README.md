@@ -60,6 +60,11 @@ latest GitHub Release:
 https://github.com/alfu32/cplus-sysroots/releases/latest/download/<reference>.zip
 ```
 
+The complete catalog is also published as
+[`sysroots-catalog.zip`](https://github.com/alfu32/cplus-sysroots/releases/latest/download/sysroots-catalog.zip),
+which contains `triples.txt`, this README, and `sysroots-catalog.json` for
+installer consumption.
+
 The checklist below is generated from `triples.txt`. A checked box means that
 the corresponding release asset has been built, validated, and published.
 
@@ -113,6 +118,16 @@ application packages, or a general-purpose package manager. It also does not
 promise that a runtime sysroot makes a program portable across unrelated host
 distributions or supplies third-party desktop/server dependencies.
 
-The next implementation steps are to add the GitHub Actions matrix, define the
-archive and manifest format, and implement the matching C-plus download and
+The GitHub Actions matrix, extraction scripts, archive format, manifest format,
+and catalog release asset are now defined. Remaining implementation work is to
+pin and periodically refresh the base-image/package versions, run the workflow
+for the first release tag, and implement the matching C-plus download and
 installation command.
+
+## Running CI
+
+The `Build and release sysroots` workflow can be started manually with a `v*`
+tag and `publish=false` for a packaging rehearsal. A tag push such as `v0.1.0`
+builds the non-Darwin matrix and publishes the sysroot ZIPs plus the catalog
+asset to that release. Darwin references are reported by the workflow but are
+not published while Apple SDK redistribution remains unresolved.

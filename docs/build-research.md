@@ -74,6 +74,12 @@ baseline image. If no image provides the desired old libc for an architecture,
 fall back to a pinned cross-toolchain rather than silently copying the current
 GitHub runner's host libc.
 
+The current extraction implementation uses manylinux2014 images for x86_64 and
+arm64 glibc, `riscv64/debian:experimental` for riscv64, and
+`ghcr.io/loong64/debian:trixie-slim` for LoongArch. The first two provide the
+glibc 2.17 baseline directly; the latter two are architecture-specific base
+images and their actual package versions are recorded in each manifest.
+
 ### Minimum-version policy
 
 The build must target the oldest upstream libc that supports the architecture,

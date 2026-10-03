@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       publish:
-        description: Publish the generated ZIP assets to the tag release
+        description: Publish generated ZIP assets to the tag release
         required: true
         default: false
         type: boolean
@@ -28,36 +28,21 @@ jobs:
     name: Validate catalog
     runs-on: ubuntu-24.04
     outputs:
-      references: ${{ steps.catalog.outputs.references }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
       tag: ${{ steps.tag.outputs.tag }}
       publish: ${{ steps.publish.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate triples and README entries
+      - name: Validate catalog and README
         run: ./scripts/validate-catalog.sh
 
-      - id: catalog
-        name: Build Linux and Windows matrix
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-
-          references = []
-          for raw in open("triples.txt", encoding="utf-8"):
-              reference = raw.strip()
-              if reference and not reference.startswith("#") and "-apple-darwin-" not in reference:
-                  references.append(reference)
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write("references=" + json.dumps(references, separators=(",", ":")) + "\n")
-          PY
+      - id: matrix
+        name: Build target matrix
+        run: echo "matrix=$(python3 scripts/catalog.py buildable)" >> "$GITHUB_OUTPUT"
 
       - id: tag
         name: Select release tag
-        shell: bash
         env:
           INPUT_TAG: ${{ inputs.tag }}
           REF_NAME: ${{ github.ref_name }}
@@ -71,41 +56,55 @@ jobs:
 
       - id: publish
         name: Select publication mode
-        shell: bash
         env:
           INPUT_PUBLISH: ${{ inputs.publish }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [[ "$EVENT_NAME" == "push" ]]; then
+          if [[ "$EVENT_NAME" == push ]]; then
             echo 'publish=true' >> "$GITHUB_OUTPUT"
           else
             echo "publish=${INPUT_PUBLISH:-false}" >> "$GITHUB_OUTPUT"
           fi
 
-  package:
-    name: Package ${{ matrix.reference }}
+  build:
+    name: Build ${{ matrix.reference }}
     needs: catalog
-    if: needs.catalog.outputs.references != '[]'
-    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        reference: ${{ fromJSON(needs.catalog.outputs.references) }}
+        include: ${{ fromJSON(needs.catalog.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Require staged sysroot
+      - name: Enable foreign-architecture containers
+        if: matrix.family != 'mingw-ucrt'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Stage Linux sysroot from base image
+        if: matrix.family != 'mingw-ucrt'
+        env:
+          REFERENCE: ${{ matrix.reference }}
+        run: ./scripts/stage-sysroot.sh "$REFERENCE" "staging/$REFERENCE"
+
+      - name: Stage Windows UCRT sysroot from MSYS2
+        if: matrix.family == 'mingw-ucrt'
+        shell: pwsh
+        env:
+          REFERENCE: ${{ matrix.reference }}
+        run: ./scripts/stage-windows.ps1 -Reference "$env:REFERENCE" -Output "staging/$env:REFERENCE"
+
+      - name: Validate staged sysroot
         shell: bash
         env:
           REFERENCE: ${{ matrix.reference }}
-        run: |
-          source_dir="staging/$REFERENCE"
-          if [[ ! -d "$source_dir" ]]; then
-            echo "No staged sysroot exists at $source_dir." >&2
-            echo "A target builder must populate staging/<reference> before packaging." >&2
-            exit 1
-          fi
-          ./scripts/package-sysroot.sh "$REFERENCE" "$source_dir" dist
+        run: ./scripts/validate-staged.sh "$REFERENCE" "staging/$REFERENCE"
+
+      - name: Package sysroot
+        shell: bash
+        env:
+          REFERENCE: ${{ matrix.reference }}
+        run: ./scripts/package-sysroot.sh "$REFERENCE" "staging/$REFERENCE" dist
 
       - name: Upload package
         uses: actions/upload-artifact@v4
@@ -115,9 +114,21 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  darwin-gate:
+    name: Report blocked Darwin targets
+    needs: catalog
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Explain Darwin gate
+        run: |
+          echo 'Darwin targets are intentionally excluded from release builds.'
+          echo 'Apple SDK redistribution rights are unresolved.'
+          python3 scripts/catalog.py darwin
+
   release:
     name: Publish release assets
-    needs: [catalog, package]
+    needs: [catalog, build, darwin-gate]
     if: needs.catalog.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     steps:
@@ -130,6 +141,16 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Build catalog release asset
+        run: |
+          python3 scripts/export-catalog.py dist/sysroots-catalog.json
+          cp triples.txt dist/triples.txt
+          cp README.md dist/README.md
+          (
+            cd dist
+            zip -q sysroots-catalog.zip triples.txt README.md sysroots-catalog.json
+          )
+
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -138,4 +159,4 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --title "$TAG" --generate-notes
           fi
-          gh release upload "$TAG" dist/*.zip dist/*.sha256 dist/*.json --clobber
+          gh release upload "$TAG" dist/*.zip dist/*.sha256 dist/*.json dist/triples.txt dist/README.md --clobber
