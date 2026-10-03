@@ -94,6 +94,26 @@ whether it may legally contain Apple headers, libraries, and runtime files.
 The safer design may be a C-plus installer that detects a local Xcode SDK and
 uses this repository only for metadata or non-Apple open-source components.
 
+There is no substitute libc that preserves normal macOS compatibility. `musl`
+and `glibc` target Linux ABIs, not Darwin. `newlib` or a custom libc could be
+used for a freestanding or specially controlled Mach-O program, but it would
+not provide the normal macOS `libSystem` ABI, system headers, frameworks, or
+loader integration expected by C-plus programs. That is a different target and
+must not be advertised as `arm64-apple-darwin` compatibility.
+
+The practical choices are therefore:
+
+1. keep the Darwin references as **local-SDK targets**: C-plus discovers the
+   user's installed Xcode/Command Line Tools SDK and this repository publishes
+   only metadata/toolchain recipes; or
+2. obtain separate permission to redistribute a specific SDK, then package it
+   with an osxcross-style toolchain. OSXCross confirms that its Darwin toolchain
+   combines a compiler, Darwin linker tools, and a packaged macOS SDK, and
+   supports arm64 targets ([OSXCross documentation](https://github.com/tpoechtrager/osxcross)).
+
+Until option 2 is legally approved, the macOS `-dev` and `-rt` checklist rows
+should remain unchecked and should not receive public ZIP assets.
+
 ## Windows / MinGW (`mingw32`)
 
 There is a preinitialized option on the official GitHub-hosted runner: the

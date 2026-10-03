@@ -26,6 +26,11 @@ Windows. Linux includes x86_64, arm64, riscv64, and loongarch64 where the
 toolchain and libc combination is meaningful. macOS and Windows include the
 currently relevant x86_64 and arm64 targets.
 
+Darwin entries are currently planned as local-SDK targets. Native macOS
+compatibility requires Apple’s SDK and `libSystem`; Linux libc implementations
+such as musl or glibc are not substitutes. Public Darwin ZIP assets remain
+blocked until SDK redistribution rights are resolved.
+
 ## Artifact references
 
 Every artifact is identified by a single hyphenated reference:
