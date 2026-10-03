@@ -15,6 +15,12 @@ files needed by a compiled program. C-plus can request either:
 - a **development sysroot** for compiling and linking (`-dev`); or
 - a **runtime sysroot** for executing dynamically linked output (`-rt`).
 
+The base libc/toolchain families are:
+
+- `gnu` for Linux glibc;
+- `musl` for Linux musl; and
+- `mingw32` for the MinGW-w64 Windows ABI.
+
 The catalog covers Linux with glibc and musl, macOS, and MinGW-compatible
 Windows. Linux includes x86_64, arm64, riscv64, and loongarch64 where the
 toolchain and libc combination is meaningful. macOS and Windows include the
@@ -78,6 +84,14 @@ the corresponding release asset has been built, validated, and published.
 | `x86_64-w64-mingw32-rt` | [ ] | [latest](https://github.com/alfu32/cplus-sysroots/releases/latest/download/x86_64-w64-mingw32-rt.zip) |
 | `arm64-w64-mingw32-dev` | [ ] | [latest](https://github.com/alfu32/cplus-sysroots/releases/latest/download/arm64-w64-mingw32-dev.zip) |
 | `arm64-w64-mingw32-rt` | [ ] | [latest](https://github.com/alfu32/cplus-sysroots/releases/latest/download/arm64-w64-mingw32-rt.zip) |
+
+## Build research
+
+Initial CI build research and the remaining technical decisions are recorded
+in [`docs/build-research.md`](docs/build-research.md). In particular, a Linux
+`chroot` is a filesystem isolation mechanism, not foreign-architecture
+emulation, and Apple SDK redistribution needs a license review before macOS
+archives can be published.
 
 ## Design principles
 
