@@ -7,6 +7,20 @@ catalog reference: a development sysroot and a runtime sysroot. Every artifact
 should contain a manifest with the target reference, source versions, build
 image, compiler/toolchain version, and SHA-256 checksum.
 
+## Preferred construction model: extract, do not rebuild
+
+Where a trusted base image already contains the desired target ABI, prefer
+installing pinned packages and copying their target-owned files into the staged
+sysroot. Rebuilding libc and the compiler is slower, harder to audit, and adds
+no value when the base distribution already provides the required ABI.
+
+This does **not** mean copying `/usr` or the whole build machine. The staging
+step must select package-owned headers, startup objects, libraries, linker
+scripts, dynamic loaders, and runtime DLLs from an allowlist. Build tools,
+shells, package databases, host headers, host libraries, caches, and temporary
+files stay outside the archive. The manifest records the base image digest and
+exact package versions so the copied sysroot is reproducible.
+
 ## Important distinction: build root versus sysroot
 
 A sysroot is the target filesystem subtree used by the compiler and linker. A
@@ -55,6 +69,30 @@ building a complete GCC/binutils/glibc toolchain (for example with a pinned
 toolchain builder). Package extraction is faster, while a from-source toolchain
 gives stronger control over ABI and versions.
 
+The preferred first experiment is package extraction from an explicitly chosen
+baseline image. If no image provides the desired old libc for an architecture,
+fall back to a pinned cross-toolchain rather than silently copying the current
+GitHub runner's host libc.
+
+### Minimum-version policy
+
+The build must target the oldest upstream libc that supports the architecture,
+not the libc installed on the GitHub runner. The current engineering baseline
+is:
+
+| architecture | minimum glibc baseline | reason |
+|---|---:|---|
+| x86_64 | 2.17 | oldest practical modern x86_64 baseline |
+| arm64 | 2.17 | supported by the early AArch64 glibc port |
+| riscv64 | 2.27 | upstream glibc support landed in 2.27 |
+| loongarch64 | 2.36 | upstream LoongArch support landed in 2.36 |
+
+These are starting baselines, not yet validated artifacts. The final build must
+verify the highest exported `GLIBC_*` symbol in linked outputs and record the
+kernel ABI baseline. The riscv64 upstream history documents glibc 2.27 support,
+while glibc 2.36 added LoongArch support ([RISC-V Debian history](https://wiki.debian.org/RISC-V),
+[glibc 2.36 release notes](https://sourceware.org/pipermail/glibc-cvs/2022q3/079946.html)).
+
 ## Linux musl (`musl`)
 
 Alpine is a sensible source image because Alpine uses musl and provides an
@@ -76,6 +114,19 @@ The Alpine package ABI and GCC version must be recorded in the manifest. A
 musl runtime archive must include the dynamic loader and shared objects required
 by the selected link mode; a statically linked program may need no runtime
 archive, but the `-rt` contract should remain consistent.
+
+For Alpine, copy the installed `musl-dev` and compiler-runtime package files and
+the selected target libraries from `/usr/include`, `/lib`, and `/usr/lib`.
+`/usr/bin`, BusyBox, APK databases, and build tools do not belong in the
+sysroot archive.
+
+For musl, use the lowest version that still supports each architecture and the
+required C-plus ABI. The initial baseline should be musl 1.2.5 for all four
+architectures: it is required by the current LoongArch target and is a stable
+common baseline for the other modern 64-bit targets. Lower per-architecture
+versions can be introduced later only as separate, explicitly tested profiles;
+they must not be inferred from the host Alpine image. The Rust target update
+also records LoongArch as requiring musl 1.2.5 ([musl target update](https://blog.rust-lang.org/2025/12/05/Updating-musl-1.2.5/)).
 
 ## macOS (`darwin`)
 
@@ -161,6 +212,12 @@ package snapshot. Keep the target triple as `x86_64-w64-mingw32` or
 policies are ever published, add `-ucrt` or `-msvcrt` to the artifact reference
 before `-dev`/`-rt`; do not let two incompatible runtimes share an artifact
 name.
+
+For MinGW, extraction from the base MSYS2 installation is reasonable because
+the UCRT64 prefix separates target headers, import libraries, static libraries,
+and runtime DLLs from the MSYS host layer. The workflow should capture the
+exact `pacman` package list and copy only the UCRT64 target prefix, not
+`C:\\msys64\\usr` or the entire runner image.
 
 ## Recommended implementation order
 
