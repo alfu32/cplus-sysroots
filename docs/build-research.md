@@ -145,10 +145,22 @@ libraries needed by the chosen execution model in `-rt`. Windows target
 execution should be validated on a Windows runner; cross-link validation can
 run on Linux. Do not call the MSYS runtime itself a C-plus runtime sysroot.
 
-Recommended experiment: use `windows-2025` to verify the packaging script
-against the preinstalled MSYS2 layout, then compare it with a pinned
-LLVM/MinGW release. Select one CRT policy—UCRT or legacy msvcrt—and encode it
-in the manifest before publishing a Windows artifact.
+Recommendation: standardize the Windows artifacts on UCRT. MSYS2 moved its
+default environment from MINGW64 to UCRT64, is phasing out MINGW64, and the
+mingw-w64 project now describes UCRT as its default CRT runtime. Microsoft
+documents UCRT as a Windows component on Windows 10 and later, with an
+available redistributable path for older supported systems. See the
+[MSYS2 environment policy](https://www.msys2.org/news/),
+[mingw-w64 downloads](https://www.mingw-w64.org/downloads/), and
+[Microsoft UCRT deployment guidance](https://learn.microsoft.com/en-us/cpp/windows/universal-crt-deployment?view=msvc-170).
+
+Use `windows-2025` to verify the packaging script against the preinstalled
+MSYS2 layout, then build release artifacts from a pinned UCRT toolchain or
+package snapshot. Keep the target triple as `x86_64-w64-mingw32` or
+`arm64-w64-mingw32`, but record `crt: ucrt` in the manifest. If multiple CRT
+policies are ever published, add `-ucrt` or `-msvcrt` to the artifact reference
+before `-dev`/`-rt`; do not let two incompatible runtimes share an artifact
+name.
 
 ## Recommended implementation order
 
